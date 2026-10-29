@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPI Premium: Musyawarah - Kemenag</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf & Confetti -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Nunito', 'sans-serif'],
+                        arabic: ['Amiri', 'serif'],
+                    },
+                    colors: {
+                        kemenag: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' },
+                        gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
+                    },
+                    animation: {
+                        'bounce-slow': 'bounce 3s infinite',
+                        'float': 'float 4s ease-in-out infinite',
+                        'wiggle': 'wiggle 1s ease-in-out infinite',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                    },
+                    keyframes: {
+                        float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+                        wiggle: { '0%, 100%': { transform: 'rotate(-3deg)' }, '50%': { transform: 'rotate(3deg)' } },
+                        pulseGlow: { '0%, 100%': { boxShadow: '0 0 15px rgba(22, 163, 74, 0.4)' }, '50%': { boxShadow: '0 0 25px rgba(22, 163, 74, 0.8)' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background: linear-gradient(135deg, #e0f2fe, #dcfce7); overflow-x: hidden; scroll-behavior: smooth; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border-radius: 24px;
+        }
+        .btn-3d {
+            transition: all 0.1s;
+            box-shadow: 0 6px 0 var(--btn-shadow);
+        }
+        .btn-3d:active {
+            transform: translateY(6px);
+            box-shadow: 0 0px 0 var(--btn-shadow);
+        }
+        .bg-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2316a34a' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        .timer-circle {
+            transition: stroke-dashoffset 1s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #pdf-report, #pdf-report * { visibility: visible; }
+            #pdf-report { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex flex-col items-center justify-center bg-pattern relative selection:bg-kemenag-200 selection:text-kemenag-900">
+
+    <!-- Audio Context & Speech Setup -->
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'correct') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'click') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            }
+        }
+
+        let isSpeaking = false;
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.onstart = () => { isSpeaking = true; updateSpeakerIcon(); };
+                utterance.onend = () => { isSpeaking = false; updateSpeakerIcon(); };
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        function toggleSpeak(text) {
+            if(isSpeaking) { window.speechSynthesis.cancel(); isSpeaking = false; updateSpeakerIcon(); }
+            else { speakText(text); }
+        }
+        function updateSpeakerIcon() {
+            const icons = document.querySelectorAll('.speaker-icon');
+            icons.forEach(i => {
+                i.className = isSpeaking ? 'fas fa-volume-up speaker-icon text-kemenag-600 animate-pulse' : 'fas fa-volume-mute speaker-icon text-slate-400';
+            });
+        }
+    </script>
+
+    <!-- DATA KONTEN -->
+    <script>
+        // --- KONFIGURASI GOOGLE APPS SCRIPT ---
+        // Ganti URL di bawah ini dengan URL Web App dari Google Apps Script setelah di-deploy
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwFrTf11ZSqQUN8sH9zxOa4xdHrHK9jPfeMCa5Syo05OsVGMY2mYlZ3_z8aoVBxbcsHUg/exec";
+
+        const materiData = [
+            {
+                title: "Hakikat Musyawarah",
+                illustration: "🕌",
+                content: "Musyawarah berasal dari bahasa Arab 'Syawara' yang berarti berunding. Ini adalah wujud Sila ke-4 Pancasila. Kita mencari mufakat yang diridhai Allah SWT demi kebaikan bersama.",
+                context: "Di Gorontalo, tradisi ini disebut 'Bantayo Poboide' tempat ulama berkumpul mengambil keputusan bersendikan syarak.",
+                kbc: "Bermusyawarah adalah ibadah jika diniatkan untuk kebaikan dan menghindari sikap otoriter.",
+                quran: { arabic: "وَشَاوِرْهُمْ فِي الْأَمْرِ", translation: "...dan bermusyawarahlah dengan mereka dalam urusan itu..." },
+                quiz: { q: "Apa nama tempat bermusyawarah adat di Gorontalo?", opts: ["Dulohupa", "Bantayo Poboide", "Tolango"], ans: 1 }
+            },
+            {
+                title: "Etika & Adab",
+                illustration: "🗣️",
+                content: "Musyawarah membutuhkan adab: berbicara santun, tidak memotong pembicaraan, menahan amarah, dan mengutamakan kepentingan umum.",
+                context: "Dalam adat 'Pohala'a', adab berbicara sangat dijaga dengan bahasa halus (Hormat dan Santun).",
+                kbc: "Menjaga lisan dari perkataan kasar adalah wujud cinta pada diri sendiri dan sesama.",
+                quran: { arabic: "وَلَوْ كُنْتَ فَظًّا غَلِيظَ الْقَلْبِ لَانْفَضُّوا مِنْ حَوْلِكَ", translation: "...Sekiranya engkau bersikap keras, tentulah mereka menjauhkan diri dari sekitarmu." },
+                quiz: { q: "Mengapa kita harus santun saat bermusyawarah?", opts: ["Agar ditakuti", "Cepat selesai", "Mencegah perpecahan"], ans: 2 }
+            },
+            {
+                title: "Menerima Keputusan",
+                illustration: "🤝",
+                content: "Tahap paling kritis adalah menerima hasil akhirnya dengan ikhlas, walau tidak sesuai usulan kita. Ini menguji sikap demokratis sejati.",
+                context: "Tradisi 'Huyula' (gotong royong) di Gorontalo berjalan karena semua tunduk pada hasil mufakat tanpa dendam.",
+                kbc: "Menerima kekalahan ide dengan senyum adalah bukti hati yang moderat.",
+                quran: { arabic: "فَاعْفُ عَنْهُمْ وَاسْتَغْفِرْ لَهُمْ", translation: "Karena itu maafkanlah mereka dan mohonkanlah ampunan..." },
+                quiz: { q: "Sikap saat usulan kita ditolak?", opts: ["Keluar rapat", "Menerima ikhlas", "Protes keras"], ans: 1 }
+            }
+        ];
+
+        const bermainData = [
+            { type: "mc", stimulus: "Warga Desa A akan membersihkan saluran irigasi. Ada usulan kerja bakti hari Jumat atau Minggu. Mereka berunding di balai desa.", q: "Sikap yang tepat saat berunding adalah...", opts: ["Memaksakan hari Minggu", "Mendengarkan semua pendapat", "Tidur saat rapat"], ans: 1 },
+            { type: "mc", stimulus: "Setelah mufakat, diputuskan kerja bakti hari Jumat pagi. Budi sebenarnya memilih Minggu karena Jumat ia ingin main bola.", q: "Tindakan Budi seharusnya...", opts: ["Tetap main bola", "Ikut kerja bakti di hari Jumat", "Menyuruh orang lain menggantikannya"], ans: 1 }
+        ];
+
+        const berlatihData = [
+            { level: 1, weight: 30, stimulus: "Sila keempat Pancasila menekankan hikmat kebijaksanaan.", q: "Inti dari sila ini adalah...", opts: ["Voting", "Musyawarah Mufakat", "Kekuasaan penuh"], ans: 1 },
+            { level: 2, weight: 30, stimulus: "Di Gorontalo, pelestarian Danau Limboto dirapatkan bersama nelayan agar ada aturan pembatasan tangkapan.", q: "Penerapan musyawarah ini wujud dari KBC...", opts: ["Cinta Alam", "Cinta Diri", "Cinta Harta"], ans: 0 },
+            { level: 3, weight: 40, stimulus: "Perdebatan sengit terjadi di WA grup RT soal iuran. Pak Ali marah menggunakan huruf besar.", q: "Evaluasi kasus tersebut!", opts: ["Aplikasi error", "Hilangnya adab santun", "Kurang admin"], ans: 1 }
+        ];
+
+        // State Management with LocalStorage
+        const defaultState = {
+            student: { name: "", class: "", avatar: "👦" },
+            progress: { belajarComplete: false, bermainComplete: false, berlatihComplete: false },
+            badges: [],
+            currentMenu: 'splash-screen',
+            belajarIndex: 0, bermainIndex: 0, berlatihIndex: 0,
+            scores: { bermain: 0, berlatih: 0 },
+            detailBermain: [],
+            detailBerlatih: []
+        };
+        
+        let appState = JSON.parse(localStorage.getItem('mpi_musyawarah_state')) || defaultState;
+
+        function saveState() { localStorage.setItem('mpi_musyawarah_state', JSON.stringify(appState)); }
+        function resetProgress() {
+            if(confirm('Hapus semua progres belajar?')) {
+                localStorage.removeItem('mpi_musyawarah_state');
+                location.reload();
+            }
+        }
+        function grantBadge(badgeName, icon) {
+            if(!appState.badges.some(b => b.name === badgeName)) {
+                appState.badges.push({name: badgeName, icon: icon});
+                saveState();
+                showToast(`🏆 Badge Baru: ${badgeName}!`);
+                triggerConfetti();
+            }
+        }
+        function triggerConfetti() {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#22c55e', '#f59e0b', '#3b82f6'] });
+        }
+    </script>
+
+    <!-- UI COMPONENTS -->
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-3 transition-all duration-300 opacity-0 -translate-y-10 z-[200] pointer-events-none">
+        <i class="fas fa-bell text-gold-400"></i> <span id="toast-msg">Notif</span>
+    </div>
+
+    <!-- 1. SPLASH SCREEN -->
+    <div id="splash-screen" class="screen-container fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-kemenag-600 to-kemenag-800 text-white">
+        <div class="relative w-40 h-40 mb-6 animate-float">
+            <div class="absolute inset-0 bg-white/20 rounded-full blur-xl animate-pulse-glow"></div>
+            <div class="text-8xl flex items-center justify-center h-full drop-shadow-2xl">🕌</div>
+        </div>
+        <h1 class="text-5xl font-black tracking-wider drop-shadow-lg mb-2 text-gold-400">MUSYAWARAH</h1>
+        <p class="text-xl font-bold opacity-90 mb-10">Generasi Hebat, Berakhlak Mulia</p>
+        <div class="flex gap-3">
+            <div class="w-4 h-4 rounded-full bg-gold-400 animate-bounce"></div>
+            <div class="w-4 h-4 rounded-full bg-gold-400 animate-bounce" style="animation-delay: 0.1s"></div>
+            <div class="w-4 h-4 rounded-full bg-gold-400 animate-bounce" style="animation-delay: 0.2s"></div>
+        </div>
+    </div>
+
+    <!-- 2. LOGIN / AVATAR SCREEN -->
+    <div id="login-screen" class="screen-container hidden w-full max-w-md mx-auto p-4 flex-col justify-center h-full relative z-10 fade-in">
+        <div class="glass-card p-8 text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-gold-400 to-kemenag-500"></div>
+            <h2 class="text-3xl font-black text-slate-800 mb-2">Mulai Petualangan!</h2>
+            <p class="text-slate-500 font-medium mb-6">Pilih avatarmu dan isi identitas.</p>
+            
+            <div class="flex justify-center gap-4 mb-6">
+                <button onclick="selectAvatar('👦')" class="avatar-btn text-5xl p-2 rounded-2xl border-4 border-transparent hover:bg-slate-100 transition-all scale-110 border-kemenag-500 bg-kemenag-50">👦</button>
+                <button onclick="selectAvatar('👧')" class="avatar-btn text-5xl p-2 rounded-2xl border-4 border-transparent hover:bg-slate-100 transition-all">👧</button>
+                <button onclick="selectAvatar('🧕')" class="avatar-btn text-5xl p-2 rounded-2xl border-4 border-transparent hover:bg-slate-100 transition-all">🧕</button>
+                <button onclick="selectAvatar('👳‍♂️')" class="avatar-btn text-5xl p-2 rounded-2xl border-4 border-transparent hover:bg-slate-100 transition-all">👳‍♂️</button>
+            </div>
+            
+            <input type="text" id="input-name" placeholder="Nama Panggilan" class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-4 py-3 mb-4 font-bold text-slate-700 focus:border-kemenag-500 focus:outline-none">
+            <select id="input-class" class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-4 py-3 mb-6 font-bold text-slate-700 focus:border-kemenag-500 focus:outline-none">
+                <option value="">Pilih Kelas</option>
+                <option value="VI A">Kelas VI A</option>
+                <option value="VI B">Kelas VI B</option>
+            </select>
+            
+            <button onclick="submitLogin()" style="--btn-shadow: #14532d;" class="btn-3d w-full bg-kemenag-500 text-white font-black text-xl py-3 rounded-xl flex items-center justify-center gap-2">
+                MASUK <i class="fas fa-play"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. DASHBOARD PETA -->
+    <div id="dash-screen" class="screen-container hidden w-full max-w-4xl mx-auto p-4 flex-col h-full z-10 fade-in relative">
+        
+        <!-- Header Profil -->
+        <div class="glass-card p-4 flex items-center justify-between mb-6 border-b-4 border-kemenag-500">
+            <div class="flex items-center gap-4">
+                <div id="dash-avatar" class="text-4xl bg-white w-14 h-14 rounded-full flex items-center justify-center shadow-inner border-2 border-slate-200">👦</div>
+                <div>
+                    <h2 id="dash-name" class="text-xl font-black text-slate-800">Halo, Nama!</h2>
+                    <p class="text-sm font-bold text-slate-500" id="dash-class">Kelas VI</p>
+                </div>
+            </div>
+            <div class="flex gap-2" id="badge-container">
+                <!-- Badges injected here -->
+            </div>
+        </div>
+
+        <div class="text-center mb-6">
+            <h3 class="text-2xl font-black text-kemenag-800 drop-shadow-sm">Peta Perjalanan Belajar</h3>
+            <p class="text-slate-600 font-bold">Ikuti urutan untuk mendapatkan sertifikat!</p>
+        </div>
+
+        <!-- Cards (Vertical Flow like a path) -->
+        <div class="flex flex-col gap-6 relative px-4 flex-grow overflow-y-auto pb-10">
+            <!-- Connector Line -->
+            <div class="absolute left-[3rem] top-10 bottom-10 w-2 bg-slate-200 rounded-full -z-10 hidden md:block"></div>
+
+            <!-- Belajar -->
+            <div onclick="openMod('belajar')" class="glass-card p-5 cursor-pointer transform hover:scale-[1.02] transition-transform border-l-8 border-blue-500 flex items-center gap-6 group">
+                <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl shadow-md group-hover:animate-wiggle">📖</div>
+                <div class="flex-grow">
+                    <h4 class="text-xl font-black text-slate-800">1. Ayo Belajar</h4>
+                    <p class="text-slate-500 text-sm font-semibold">Pahami ilmunya dulu yuk!</p>
+                </div>
+                <div id="status-belajar" class="text-blue-500 text-2xl"><i class="fas fa-play-circle"></i></div>
+            </div>
+
+            <!-- Bermain -->
+            <div onclick="openMod('bermain')" id="card-bermain" class="glass-card p-5 transition-transform border-l-8 border-slate-300 opacity-60 flex items-center gap-6 relative">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-3xl shadow-md">🎮</div>
+                <div class="flex-grow">
+                    <h4 class="text-xl font-black text-slate-800">2. Bermain Kuis</h4>
+                    <p class="text-slate-500 text-sm font-semibold">Uji ingatan sambil seru-seruan.</p>
+                </div>
+                <div id="status-bermain" class="text-slate-400 text-xl"><i class="fas fa-lock"></i></div>
+            </div>
+
+            <!-- Berlatih -->
+            <div onclick="openMod('berlatih')" id="card-berlatih" class="glass-card p-5 transition-transform border-l-8 border-slate-300 opacity-60 flex items-center gap-6">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-3xl shadow-md">📝</div>
+                <div class="flex-grow">
+                    <h4 class="text-xl font-black text-slate-800">3. Ujian Akhir</h4>
+                    <p class="text-slate-500 text-sm font-semibold">Tantangan HOTS yang sesungguhnya.</p>
+                </div>
+                <div id="status-berlatih" class="text-slate-400 text-xl"><i class="fas fa-lock"></i></div>
+            </div>
+
+            <!-- Sertifikat -->
+            <div onclick="openMod('laporan')" id="card-laporan" class="glass-card p-5 transition-transform border-l-8 border-slate-300 opacity-60 flex items-center gap-6 bg-gradient-to-r from-gold-50 to-white">
+                <div class="w-16 h-16 rounded-full bg-gold-100 flex items-center justify-center text-3xl shadow-md">🎓</div>
+                <div class="flex-grow">
+                    <h4 class="text-xl font-black text-gold-600">4. Sertifikat Juara</h4>
+                    <p class="text-slate-500 text-sm font-semibold">Ambil hadiah kelulusanmu!</p>
+                </div>
+                <div id="status-laporan" class="text-slate-400 text-xl"><i class="fas fa-lock"></i></div>
+            </div>
+        </div>
+
+        <button onclick="resetProgress()" class="mt-4 text-slate-400 text-sm font-bold hover:text-red-500 transition-colors"><i class="fas fa-sync-alt"></i> Reset Progres</button>
+    </div>
+
+    <!-- 4. MODUL BELAJAR -->
+    <div id="belajar-screen" class="screen-container hidden w-full max-w-3xl mx-auto p-4 flex-col h-full z-10 fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <button onclick="navTo('dash-screen')" style="--btn-shadow: #94a3b8;" class="btn-3d bg-slate-100 border-2 border-slate-300 w-10 h-10 rounded-xl flex items-center justify-center text-slate-600"><i class="fas fa-arrow-left"></i></button>
+            
+            <!-- Progress Bar -->
+            <div class="flex-grow mx-4 h-4 bg-slate-200 rounded-full overflow-hidden border border-slate-300 shadow-inner">
+                <div id="belajar-progress" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+            </div>
+            
+            <button onclick="toggleSpeak(materiData[appState.belajarIndex].content)" style="--btn-shadow: #bbf7d0;" class="btn-3d bg-kemenag-100 border-2 border-kemenag-300 w-10 h-10 rounded-xl flex items-center justify-center">
+                <i class="speaker-icon fas fa-volume-mute text-slate-500"></i>
+            </button>
+        </div>
+
+        <div class="glass-card flex-grow overflow-y-auto p-6 flex flex-col relative" id="belajar-content-area">
+            <!-- Injected -->
+        </div>
+    </div>
+
+    <!-- 5. MODUL BERMAIN/BERLATIH (Generic Quiz UI) -->
+    <div id="quiz-screen" class="screen-container hidden w-full max-w-3xl mx-auto p-4 flex-col h-full z-10 fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <button onclick="navTo('dash-screen')" style="--btn-shadow: #94a3b8;" class="btn-3d bg-slate-100 border-2 border-slate-300 px-4 py-2 rounded-xl text-slate-600 font-bold"><i class="fas fa-times mr-2"></i> Keluar</button>
+            <div class="bg-white px-4 py-2 rounded-xl font-black text-slate-700 shadow-sm border-2 border-slate-200"><span id="quiz-counter">1/5</span></div>
+            <div class="bg-gold-100 px-4 py-2 rounded-xl font-black text-gold-600 shadow-sm border-2 border-gold-300 flex items-center gap-1"><i class="fas fa-star"></i> <span id="quiz-score">0</span></div>
+        </div>
+
+        <div class="glass-card flex-grow p-6 flex flex-col relative" id="quiz-content-area">
+            <!-- Injected -->
+        </div>
+    </div>
+
+    <!-- 6. LAPORAN & SERTIFIKAT -->
+    <div id="laporan-screen" class="screen-container hidden w-full max-w-4xl mx-auto p-4 flex-col h-full z-10 fade-in overflow-y-auto">
+        <div class="no-print flex justify-between items-center mb-6">
+            <button onclick="navTo('dash-screen')" class="btn-3d bg-slate-100 border-2 border-slate-300 px-4 py-2 rounded-xl text-slate-600 font-bold" style="--btn-shadow: #94a3b8;"><i class="fas fa-home mr-2"></i> Menu</button>
+            <button onclick="generatePDF()" class="btn-3d bg-kemenag-600 border-2 border-kemenag-700 px-4 py-2 rounded-xl text-white font-bold flex items-center gap-2" style="--btn-shadow: #14532d;"><i class="fas fa-download"></i> Unduh Sertifikat</button>
+        </div>
+
+        <div id="pdf-report" class="bg-white w-full rounded-2xl shadow-2xl p-10 border-8 border-double border-gold-400 relative overflow-hidden text-center flex flex-col items-center justify-center min-h-[600px]">
+            <!-- Decorative Corners -->
+            <div class="absolute top-4 left-4 text-4xl text-gold-300"><i class="fas fa-leaf"></i></div>
+            <div class="absolute top-4 right-4 text-4xl text-gold-300"><i class="fas fa-leaf transform scale-x-[-1]"></i></div>
+            <div class="absolute bottom-4 left-4 text-4xl text-gold-300"><i class="fas fa-leaf transform scale-y-[-1]"></i></div>
+            <div class="absolute bottom-4 right-4 text-4xl text-gold-300"><i class="fas fa-leaf transform rotate-180"></i></div>
+            
+            <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none text-[300px]"><i class="fas fa-award text-gold-500"></i></div>
+
+            <h1 class="text-4xl font-black text-kemenag-800 uppercase tracking-widest mb-2 font-serif">Sertifikat Penghargaan</h1>
+            <p class="text-slate-500 font-bold tracking-widest mb-10">Diberikan atas prestasi gemilang kepada:</p>
+            
+            <div class="text-7xl mb-4" id="cert-avatar">👦</div>
+            <h2 class="text-5xl font-black text-slate-800 border-b-4 border-gold-400 pb-2 mb-2 inline-block px-10" id="cert-name">Nama Siswa</h2>
+            <p class="text-xl font-bold text-slate-600 mb-10" id="cert-class">Kelas VI</p>
+
+            <p class="text-lg text-slate-700 font-medium max-w-2xl mx-auto leading-relaxed mb-8">
+                Telah berhasil menyelesaikan pembelajaran interaktif materi <b>Musyawarah</b> dengan mengamalkan nilai-nilai luhur Pancasila dan Kurikulum Berbasis Cinta (KBC).
+            </p>
+
+            <div class="flex gap-10 justify-center w-full max-w-xl mx-auto mb-10">
+                <div class="text-center bg-slate-50 p-4 rounded-xl border-2 border-slate-200 flex-1">
+                    <p class="text-sm font-bold text-slate-400 uppercase">Skor Kuis</p>
+                    <p class="text-3xl font-black text-blue-500" id="cert-score-play">0</p>
+                </div>
+                <div class="text-center bg-gold-50 p-4 rounded-xl border-2 border-gold-200 flex-1 relative">
+                    <div class="absolute -top-3 -right-3 text-3xl animate-bounce">🏅</div>
+                    <p class="text-sm font-bold text-gold-600 uppercase">Nilai Ujian</p>
+                    <p class="text-4xl font-black text-gold-500" id="cert-score-test">0</p>
+                </div>
+            </div>
+
+            <div class="flex justify-between w-full max-w-2xl mx-auto items-end mt-auto">
+                <div class="text-center">
+                    <div id="cert-badges" class="flex gap-2 text-2xl mb-2 justify-center"></div>
+                    <p class="text-xs font-bold text-slate-400">Pencapaian (Badges)</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-sm text-slate-600 mb-8" id="cert-date">Gorontalo, -</p>
+                    <div class="border-t-2 border-slate-400 pt-2 w-48 mx-auto">
+                        <p class="font-black text-slate-800">Guru Kelas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // UI Helpers
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('opacity-0', '-translate-y-10');
+            playSound('correct');
+            setTimeout(() => { t.classList.add('opacity-0', '-translate-y-10'); }, 3000);
+        }
+
+        function openReferensi() {
+            playSound('click');
+            const modal = document.getElementById('ref-modal');
+            const content = document.getElementById('ref-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeReferensi() {
+            playSound('click');
+            const modal = document.getElementById('ref-modal');
+            const content = document.getElementById('ref-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function navTo(id) {
+            document.querySelectorAll('.screen-container').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(id);
+            target.classList.remove('hidden');
+            target.classList.add('flex');
+            appState.currentMenu = id;
+            if(window.speechSynthesis) window.speechSynthesis.cancel();
+            
+            if(id === 'dash-screen') renderDash();
+            if(id === 'laporan-screen') renderLaporan();
+        }
+
+        // Init
+        window.onload = () => {
+            if(appState.student.name !== "") {
+                setTimeout(() => navTo('dash-screen'), 1500);
+            } else {
+                setTimeout(() => navTo('login-screen'), 1500);
+            }
+        };
+
+        // Login Logic
+        function selectAvatar(av) {
+            appState.student.avatar = av;
+            document.querySelectorAll('.avatar-btn').forEach(btn => {
+                if(btn.innerText === av) {
+                    btn.classList.add('border-kemenag-500', 'bg-kemenag-50', 'scale-110');
+                    btn.classList.remove('border-transparent');
+                } else {
+                    btn.classList.remove('border-kemenag-500', 'bg-kemenag-50', 'scale-110');
+                    btn.classList.add('border-transparent');
+                }
+            });
+            playSound('click');
+        }
+
+        function submitLogin() {
+            const name = document.getElementById('input-name').value.trim();
+            const cls = document.getElementById('input-class').value;
+            if(!name || !cls) { playSound('wrong'); showToast("Isi nama dan kelas dulu ya!"); return; }
+            
+            appState.student.name = name;
+            appState.student.class = cls;
+            saveState();
+            playSound('correct');
+            
+            // Inisialisasi: Kirim struktur Soal ke Database jika sheet belum ada
+            sendSoalToGAS();
+            
+            navTo('dash-screen');
+        }
+
+        // --- GOOGLE APPS SCRIPT INTEGRATION ---
+        function sendSoalToGAS() {
+            if (GAS_URL === "URL_GAS_ANDA_DISINI") return;
+            const payload = { action: "saveSoal", bermainData: bermainData, berlatihData: berlatihData };
+            fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
+                .catch(e => console.log("Init Info:", e));
+        }
+
+        function sendHasilToGAS() {
+            if (GAS_URL === "URL_GAS_ANDA_DISINI") return;
+            showToast("Menyimpan hasil evaluasi ke Server...");
+            const payload = {
+                action: "saveHasil",
+                nama: appState.student.name,
+                kelas: appState.student.class,
+                detailBermain: appState.detailBermain,
+                detailBerlatih: appState.detailBerlatih
+            };
+            fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
+                .then(res => res.json()).then(data => console.log("Berhasil Simpan:", data))
+                .catch(e => console.log("Gagal mengirim Hasil:", e));
+        }
+        // --------------------------------------
+
+        // Dash Logic
+        function renderDash() {
+            document.getElementById('dash-name').innerText = `Halo, ${appState.student.name}!`;
+            document.getElementById('dash-class').innerText = appState.student.class;
+            document.getElementById('dash-avatar').innerText = appState.student.avatar;
+
+            // Badges
+            document.getElementById('badge-container').innerHTML = appState.badges.map(b => `<div class="bg-white p-1 rounded-full shadow-sm border border-slate-200 text-xl" title="${b.name}">${b.icon}</div>`).join('');
+
+            // Unlock logic
+            if(appState.progress.belajarComplete) {
+                const b = document.getElementById('card-bermain');
+                b.classList.remove('opacity-60', 'border-slate-300'); b.classList.add('border-green-500', 'cursor-pointer', 'hover:scale-[1.02]');
+                document.getElementById('status-bermain').innerHTML = '<i class="fas fa-play-circle text-green-500 text-2xl"></i>';
+                b.querySelector('.bg-slate-100').classList.replace('bg-slate-100', 'bg-green-100');
+            }
+            if(appState.progress.bermainComplete) {
+                const l = document.getElementById('card-berlatih');
+                l.classList.remove('opacity-60', 'border-slate-300'); l.classList.add('border-orange-500', 'cursor-pointer', 'hover:scale-[1.02]');
+                document.getElementById('status-berlatih').innerHTML = '<i class="fas fa-play-circle text-orange-500 text-2xl"></i>';
+                l.querySelector('.bg-slate-100').classList.replace('bg-slate-100', 'bg-orange-100');
+            }
+            if(appState.progress.berlatihComplete) {
+                const lap = document.getElementById('card-laporan');
+                lap.classList.remove('opacity-60', 'border-slate-300'); lap.classList.add('border-gold-400', 'cursor-pointer', 'hover:scale-[1.02]');
+                document.getElementById('status-laporan').innerHTML = '<i class="fas fa-download text-gold-500 text-2xl"></i>';
+            }
+        }
+
+        function openMod(type) {
+            playSound('click');
+            if(type === 'belajar') { appState.belajarIndex = 0; renderBelajar(); navTo('belajar-screen'); }
+            if(type === 'bermain') {
+                if(!appState.progress.belajarComplete) { playSound('wrong'); showToast('Selesaikan Belajar dulu!'); return; }
+                currentQuizType = 'bermain'; appState.bermainIndex = 0; appState.scores.bermain = 0; 
+                appState.detailBermain = []; // Reset memori jawaban
+                renderQuiz(); navTo('quiz-screen');
+            }
+            if(type === 'berlatih') {
+                if(!appState.progress.bermainComplete) { playSound('wrong'); showToast('Selesaikan Bermain dulu!'); return; }
+                currentQuizType = 'berlatih'; appState.berlatihIndex = 0; appState.scores.berlatih = 0; 
+                appState.detailBerlatih = []; // Reset memori jawaban
+                renderQuiz(); navTo('quiz-screen');
+            }
+            if(type === 'laporan') {
+                if(!appState.progress.berlatihComplete) { playSound('wrong'); showToast('Selesaikan Ujian dulu!'); return; }
+                navTo('laporan-screen');
+            }
+        }
+
+        // Belajar Logic
+        function renderBelajar() {
+            const data = materiData[appState.belajarIndex];
+            const prog = ((appState.belajarIndex) / materiData.length) * 100;
+            document.getElementById('belajar-progress').style.width = `${prog}%`;
+
+            let html = `
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4 animate-float">${data.illustration}</div>
+                    <h2 class="text-2xl font-black text-slate-800">${data.title}</h2>
+                </div>
+                
+                <div class="bg-white border-2 border-slate-100 rounded-2xl p-5 mb-4 shadow-sm relative">
+                    <!-- Character Mascot -->
+                    <div class="absolute -top-4 -left-4 bg-kemenag-100 border-2 border-white rounded-full w-12 h-12 flex items-center justify-center text-2xl shadow-md">🦉</div>
+                    <p class="text-slate-700 font-semibold leading-relaxed ml-4">${data.content}</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                        <p class="text-xs font-black text-amber-600 mb-1"><i class="fas fa-map-marker-alt"></i> Info Gorontalo</p>
+                        <p class="text-sm text-slate-700 font-medium">${data.context}</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-2xl border border-green-200">
+                        <p class="text-xs font-black text-green-600 mb-1"><i class="fas fa-heart"></i> Nilai KBC</p>
+                        <p class="text-sm text-slate-700 font-medium">${data.kbc}</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 text-white rounded-2xl p-4 text-center mb-6 shadow-inner">
+                    <p class="font-arabic text-2xl mb-2 leading-relaxed" dir="rtl">${data.quran.arabic}</p>
+                    <p class="text-xs text-slate-300 italic">"${data.quran.translation}"</p>
+                </div>
+
+                <!-- Mini Quiz (Inline) -->
+                <div class="mt-auto bg-blue-50 border-2 border-blue-200 p-4 rounded-2xl">
+                    <p class="font-bold text-sm text-blue-900 mb-3"><i class="fas fa-question-circle"></i> Cek Pemahaman:</p>
+                    <p class="text-sm font-semibold mb-3 text-slate-700">${data.quiz.q}</p>
+                    <div class="space-y-2" id="mini-opts">
+                        ${data.quiz.opts.map((opt, i) => `
+                            <button onclick="checkMiniQuiz(${i}, ${data.quiz.ans})" class="w-full text-left bg-white border-2 border-slate-200 px-4 py-2 rounded-xl font-bold text-sm text-slate-600 hover:border-blue-400 transition-colors btn-mini">${opt}</button>
+                        `).join('')}
+                    </div>
+                    <button id="btn-next-belajar" onclick="nextBelajar()" class="hidden w-full mt-4 bg-blue-500 text-white font-black py-3 rounded-xl btn-3d" style="--btn-shadow: #1e3a8a;">Lanjut <i class="fas fa-arrow-right"></i></button>
+                </div>
+            `;
+            document.getElementById('belajar-content-area').innerHTML = html;
+        }
+
+        function checkMiniQuiz(sel, ans) {
+            const btns = document.querySelectorAll('.btn-mini');
+            btns.forEach((b, i) => {
+                b.disabled = true;
+                if(i === ans) { b.classList.add('bg-green-100', 'border-green-500', 'text-green-800'); }
+                else if (i === sel && sel !== ans) { b.classList.add('bg-red-100', 'border-red-500', 'text-red-800'); }
+            });
+            if(sel === ans) { playSound('correct'); } else { playSound('wrong'); }
+            document.getElementById('btn-next-belajar').classList.remove('hidden');
+        }
+
+        function nextBelajar() {
+            appState.belajarIndex++;
+            playSound('click');
+            if(appState.belajarIndex >= materiData.length) {
+                appState.progress.belajarComplete = true;
+                saveState();
+                grantBadge("Kutu Buku", "📚");
+                navTo('dash-screen');
+            } else {
+                renderBelajar();
+            }
+        }
+
+        // Quiz Logic (Bermain & Berlatih)
+        let currentQuizType = ''; // 'bermain' or 'berlatih'
+        let selectedOpt = null;
+
+        function renderQuiz() {
+            selectedOpt = null;
+            const isBermain = currentQuizType === 'bermain';
+            const dataSet = isBermain ? bermainData : berlatihData;
+            const index = isBermain ? appState.bermainIndex : appState.berlatihIndex;
+            const data = dataSet[index];
+            const score = isBermain ? appState.scores.bermain : appState.scores.berlatih;
+            
+            document.getElementById('quiz-counter').innerText = `${index + 1}/${dataSet.length}`;
+            document.getElementById('quiz-score').innerText = score;
+
+            let html = `
+                <div class="flex-grow flex flex-col">
+                    <div class="bg-white border-2 border-slate-200 rounded-2xl p-5 mb-6 shadow-sm relative text-sm font-semibold text-slate-700 leading-relaxed text-justify">
+                        <div class="absolute -top-3 -right-3 text-3xl rotate-12">${isBermain ? '🎮' : '📝'}</div>
+                        ${data.stimulus}
+                    </div>
+                    
+                    <h3 class="text-xl font-black text-slate-800 mb-6 text-center">${data.q}</h3>
+                    
+                    <div class="space-y-3 mb-6 flex-grow" id="quiz-opts">
+                        ${data.opts.map((opt, i) => `
+                            <button onclick="selectOpt(${i})" class="w-full text-left bg-white border-4 border-slate-100 p-4 rounded-2xl font-bold text-slate-600 hover:border-gold-300 hover:bg-gold-50 transition-all quiz-btn flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-black">${String.fromCharCode(65+i)}</div>
+                                <span>${opt}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <button id="btn-submit-quiz" onclick="checkQuiz(${data.ans}, ${data.weight || 10})" class="hidden w-full bg-slate-800 text-white font-black py-4 rounded-xl btn-3d text-lg" style="--btn-shadow: #334155;">Cek Jawaban <i class="fas fa-check"></i></button>
+                </div>
+            `;
+            document.getElementById('quiz-content-area').innerHTML = html;
+        }
+
+        function selectOpt(idx) {
+            playSound('click');
+            selectedOpt = idx;
+            const btns = document.querySelectorAll('.quiz-btn');
+            btns.forEach((b, i) => {
+                if(i === idx) {
+                    b.classList.add('border-gold-400', 'bg-gold-50');
+                    b.querySelector('div').classList.replace('bg-slate-200', 'bg-gold-400');
+                    b.querySelector('div').classList.replace('text-slate-500', 'text-white');
+                } else {
+                    b.className = "w-full text-left bg-white border-4 border-slate-100 p-4 rounded-2xl font-bold text-slate-600 hover:border-gold-300 hover:bg-gold-50 transition-all quiz-btn flex items-center gap-3";
+                    b.querySelector('div').className = "w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-black";
+                }
+            });
+            document.getElementById('btn-submit-quiz').classList.remove('hidden');
+        }
+
+        function checkQuiz(ans, weight) {
+            const btns = document.querySelectorAll('.quiz-btn');
+            btns.forEach((b, i) => { b.disabled = true; });
+            
+            const isCorrect = selectedOpt === ans;
+            const btn = btns[selectedOpt];
+
+            // --- REKAM JAWABAN SISWA ---
+            const qData = currentQuizType === 'bermain' ? bermainData[appState.bermainIndex] : berlatihData[appState.berlatihIndex];
+            const answerDetail = {
+                pertanyaan: qData.q,
+                jawabanSiswa: qData.opts[selectedOpt] || "Tidak Dijawab",
+                kunciJawaban: qData.opts[ans],
+                status: isCorrect ? "Benar" : "Salah"
+            };
+
+            if(currentQuizType === 'bermain') appState.detailBermain[appState.bermainIndex] = answerDetail;
+            else appState.detailBerlatih[appState.berlatihIndex] = answerDetail;
+            
+            saveState(); // Simpan ke local storage
+            // ---------------------------
+
+            if(isCorrect) {
+                playSound('correct');
+                btn.classList.replace('border-gold-400', 'border-green-500');
+                btn.classList.replace('bg-gold-50', 'bg-green-50');
+                btn.querySelector('div').classList.replace('bg-gold-400', 'bg-green-500');
+                if(currentQuizType === 'bermain') appState.scores.bermain += weight;
+                if(currentQuizType === 'berlatih') appState.scores.berlatih += weight;
+                triggerConfetti();
+            } else {
+                playSound('wrong');
+                btn.classList.replace('border-gold-400', 'border-red-500');
+                btn.classList.replace('bg-gold-50', 'bg-red-50');
+                btn.querySelector('div').classList.replace('bg-gold-400', 'bg-red-500');
+                
+                // highlight correct
+                const cBtn = btns[ans];
+                cBtn.classList.add('border-green-500', 'bg-green-50');
+                cBtn.querySelector('div').classList.replace('bg-slate-200', 'bg-green-500');
+                cBtn.querySelector('div').classList.replace('text-slate-500', 'text-white');
+            }
+
+            const submitBtn = document.getElementById('btn-submit-quiz');
+            submitBtn.innerText = "Lanjut";
+            submitBtn.className = "w-full bg-blue-600 text-white font-black py-4 rounded-xl btn-3d text-lg mt-4";
+            submitBtn.style.setProperty('--btn-shadow', '#1d4ed8');
+            submitBtn.onclick = nextQuiz;
+        }
+
+        function nextQuiz() {
+            playSound('click');
+            if(currentQuizType === 'bermain') {
+                appState.bermainIndex++;
+                if(appState.bermainIndex >= bermainData.length) {
+                    appState.progress.bermainComplete = true; saveState();
+                    grantBadge("Gamer Pintar", "🎮");
+                    navTo('dash-screen');
+                } else { renderQuiz(); }
+            } else {
+                appState.berlatihIndex++;
+                if(appState.berlatihIndex >= berlatihData.length) {
+                    appState.progress.berlatihComplete = true; saveState();
+                    grantBadge("Master HOTS", "🏆");
+                    
+                    // --- KIRIM DATA SETELAH SEMUA UJIAN SELESAI ---
+                    sendHasilToGAS();
+                    
+                    navTo('dash-screen');
+                } else { renderQuiz(); }
+            }
+        }
+
+        // Laporan Logic
+        function renderLaporan() {
+            triggerConfetti();
+            document.getElementById('cert-name').innerText = appState.student.name;
+            document.getElementById('cert-class').innerText = appState.student.class;
+            document.getElementById('cert-avatar').innerText = appState.student.avatar;
+            document.getElementById('cert-score-play').innerText = appState.scores.bermain;
+            document.getElementById('cert-score-test').innerText = appState.scores.berlatih;
+            document.getElementById('cert-date').innerText = `Gorontalo, ${new Date().toLocaleDateString('id-ID')}`;
+            document.getElementById('cert-badges').innerHTML = appState.badges.map(b => b.icon).join('');
+        }
+
+        function generatePDF() {
+            playSound('click');
+            const element = document.getElementById('pdf-report');
+            const opt = {
+                margin: 0,
+                filename: `Sertifikat_${appState.student.name}.pdf`,
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+    </script>
+</body>
+</html>
